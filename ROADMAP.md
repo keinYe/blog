@@ -14,6 +14,7 @@
 - 透明 logo 资产接入。
 - 真实公众号二维码接入。
 - 清空旧文章，接入首篇文章《65 行，治好了 AI 写代码的三个臭毛病》。
+- GitHub Pages Actions 部署 workflow 接入。
 
 ## 进行中
 
@@ -21,8 +22,7 @@
 
 ## 待办
 
-- GitHub Pages 部署配置。
-- 域名绑定。
+- 域名 DNS 解析与 GitHub Pages 自定义域名绑定。
 
 ## 阻塞
 
@@ -31,3 +31,4 @@
 ## 最近验证
 
 - 2026-06-25：`npm run build` 通过，Astro check 0 errors / 0 warnings，生成 4 个静态页面；文章详情路由为 `/blog/2026-06-07-65-lines-karpathy/`。
+- 2026-06-25：新增 GitHub Pages Actions 部署 workflow，等待 GitHub 端 Pages Source 与 DNS 配置。
