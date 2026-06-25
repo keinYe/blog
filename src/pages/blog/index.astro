@@ -1,8 +1,9 @@
 ---
+import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { articles } from "../../data/articles";
 
-const categories = ["全部", "AI Coding"];
+const articles = (await getCollection("blog")).sort((a, b) => b.data.date.localeCompare(a.data.date));
+const categories = ["全部", ...Array.from(new Set(articles.map((article) => article.data.category)))];
 ---
 
 <BaseLayout title="文章 | keinYe" currentPath="/blog/">
@@ -18,16 +19,16 @@ const categories = ["全部", "AI Coding"];
 
       <div class="post-list" aria-label="文章列表">
         {articles.map((article) => (
-          <a class="post-row" href={`/blog/${article.slug}/`}>
+          <a class="post-row" href={`/blog/${article.id.replace(/\.md$/, "")}/`}>
             <div class="post-time">
-              <time datetime={article.date}>{article.date}</time>
-              <span>{article.readTime}</span>
+              <time datetime={article.data.date}>{article.data.date}</time>
+              <span>{article.data.readTime}</span>
             </div>
             <div class="post-main">
-              <h2>{article.title}</h2>
-              <p>{article.summary}</p>
+              <h2>{article.data.title}</h2>
+              <p>{article.data.summary}</p>
             </div>
-            <span class="post-tag">{article.category}</span>
+            <span class="post-tag">{article.data.category}</span>
           </a>
         ))}
       </div>

@@ -1,21 +1,22 @@
 ---
-import type { Article } from "../data/articles";
+import type { CollectionEntry } from "astro:content";
 
 type Props = {
-  article: Article;
+  article: CollectionEntry<"blog">;
   featured?: boolean;
 };
 
 const { article, featured = false } = Astro.props;
-const excerpt = featured ? article.featuredExcerpt ?? article.summary : article.summary;
+const excerpt = featured ? article.data.featuredExcerpt ?? article.data.summary : article.data.summary;
+const slug = article.id.replace(/\.md$/, "");
 ---
 
-<a class:list={["article-card", { featured }]} href={`/blog/${article.slug}/`}>
+<a class:list={["article-card", { featured }]} href={`/blog/${slug}/`}>
   {featured && <span class="feature-rail">FEATURED NOTE</span>}
   <div class="article-meta">
-    <time datetime={article.date}>{article.date}</time>
-    <span>{article.category}</span>
+    <time datetime={article.data.date}>{article.data.date}</time>
+    <span>{article.data.category}</span>
   </div>
-  <h3>{article.title}</h3>
+  <h3>{article.data.title}</h3>
   <p>{excerpt}</p>
 </a>
