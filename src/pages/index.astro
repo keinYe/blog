@@ -1,0 +1,76 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ArticleCard from "../components/ArticleCard.astro";
+import SubscribeCard from "../components/SubscribeCard.astro";
+import { articles, featuredArticle } from "../data/articles";
+
+const latestArticles = articles.filter((article) => article.slug !== featuredArticle.slug).slice(0, 3);
+const hasLatestArticles = latestArticles.length > 0;
+---
+
+<BaseLayout title="keinYe | AI 技术与产品实践">
+  <section class="home-hero section">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1>将 AI 工具实践、产品判断和工程经验，沉淀为长期档案</h1>
+        <p class="lead">
+          用工具改变工作方式，用规则固化经验，记录软件、产品与内容工作的长期迭代。
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="/blog/">查看文章</a>
+          <a class="button secondary" href="#about">了解作者</a>
+        </div>
+      </div>
+
+      <aside class="hero-panel" aria-label="内容主线">
+        <div class="topic-list">
+          <div>
+            <h2>AI 编程工具</h2>
+            <p>从体验到实践，记录 AI 编程带来的效率变化。</p>
+          </div>
+          <div>
+            <h2>产品与工程</h2>
+            <p>把产品目标、技术路径和交付约束放在一起分析。</p>
+          </div>
+          <div>
+            <h2>知识管理</h2>
+            <p>把个人经验整理成规则、模板和可复用的工作流。</p>
+          </div>
+        </div>
+        <SubscribeCard compact dark />
+      </aside>
+    </div>
+  </section>
+
+  <div class="transition-band" aria-hidden="true"></div>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-heading">
+        <p class="eyebrow">LATEST NOTES</p>
+        <h2>最新文章</h2>
+        <a href="/blog/">查看全部</a>
+      </div>
+      <div class:list={["home-articles", { single: !hasLatestArticles }]}>
+        <ArticleCard article={featuredArticle} featured />
+        {hasLatestArticles && (
+          <div class="article-stack">
+            {latestArticles.map((article) => <ArticleCard article={article} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+
+  <section class="section about-section" id="about">
+    <div class="container about-grid">
+      <div>
+        <p class="eyebrow">ABOUT</p>
+        <h2>少一点履历展示，多一点实践复盘</h2>
+      </div>
+      <p>
+        我长期在软件、产品和内容之间工作。这里记录工具带来的工作流变化，也记录经验如何被整理成可复用规则。
+      </p>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,31 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="personal-website 预览入口" currentPath="/preview/">
+  <section class="preview-page section">
+    <div class="container narrow">
+      <p class="eyebrow">DESIGN PREVIEW</p>
+      <h1>个人网站 v2 入口</h1>
+      <p class="lead">这个页面只用于检查交付范围。真实站点入口仍然是首页。</p>
+
+      <div class="preview-grid" aria-label="页面入口">
+        <a href="/">
+          <span>01</span>
+          <strong>主页</strong>
+          <p>身份定位、内容主线、最新文章和公众号关注。</p>
+        </a>
+        <a href="/blog/">
+          <span>02</span>
+          <strong>文章列表</strong>
+          <p>按时间倒序展示文章，突出扫描效率。</p>
+        </a>
+        <a href="/blog/2026-06-07-65-lines-karpathy/">
+          <span>03</span>
+          <strong>文章详情</strong>
+          <p>长文阅读、目录、代码块和文末关注入口。</p>
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

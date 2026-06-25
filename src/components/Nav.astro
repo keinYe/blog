@@ -1,0 +1,45 @@
+---
+type Props = {
+  currentPath: string;
+};
+
+const { currentPath } = Astro.props;
+
+const links = [
+  { href: "/", label: "首页", match: "/" },
+  { href: "/blog/", label: "文章", match: "/blog" },
+  { href: "/#about", label: "关于", match: "#about" },
+  { href: "#contact", label: "联系", match: "#contact" }
+];
+
+const isCurrent = (match: string) => {
+  if (match === "/") return currentPath === "/";
+  if (match.startsWith("#")) return false;
+  return currentPath.startsWith(match);
+};
+---
+
+<header class="site-header">
+  <nav class="nav-shell" aria-label="主导航">
+    <a class="brand" href="/" aria-label="keinYe 首页">
+      <img src="/images/logo.png" alt="" width="34" height="34" />
+      <span class="brand-text">
+        <strong>keinYe</strong>
+        <span>AI 技术 & 产品实践</span>
+      </span>
+    </a>
+
+    <div class="nav-links">
+      {links.map((link) => (
+        <a
+          href={link.href}
+          aria-current={isCurrent(link.match) ? "page" : undefined}
+        >
+          {link.label}
+        </a>
+      ))}
+    </div>
+
+    <a class="nav-action" href="#subscribe">关注公众号</a>
+  </nav>
+</header>

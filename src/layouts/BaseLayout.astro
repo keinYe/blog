@@ -1,0 +1,35 @@
+---
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+type Props = {
+  title: string;
+  description?: string;
+  currentPath?: string;
+};
+
+const {
+  title,
+  description = "keinYe 的个人内容站，记录 AI 工具、工程实践和知识管理。",
+  currentPath = Astro.url.pathname
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content={description} />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <Nav currentPath={currentPath} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

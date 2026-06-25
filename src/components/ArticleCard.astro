@@ -1,0 +1,21 @@
+---
+import type { Article } from "../data/articles";
+
+type Props = {
+  article: Article;
+  featured?: boolean;
+};
+
+const { article, featured = false } = Astro.props;
+const excerpt = featured ? article.featuredExcerpt ?? article.summary : article.summary;
+---
+
+<a class:list={["article-card", { featured }]} href={`/blog/${article.slug}/`}>
+  {featured && <span class="feature-rail">FEATURED NOTE</span>}
+  <div class="article-meta">
+    <time datetime={article.date}>{article.date}</time>
+    <span>{article.category}</span>
+  </div>
+  <h3>{article.title}</h3>
+  <p>{excerpt}</p>
+</a>

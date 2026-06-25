@@ -1,0 +1,146 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { articles } from "../../data/articles";
+
+export function getStaticPaths() {
+  return articles.map((article) => ({
+    params: { slug: article.slug },
+    props: { article }
+  }));
+}
+
+const { article } = Astro.props;
+const [year, month, day] = article.date.split("-").map(Number);
+const formattedDate = year + "年" + month + "月" + day + "日";
+const readMinutes = article.readTime.replace(/\s*min$/, "");
+---
+
+<BaseLayout title={`${article.title} | keinYe`} currentPath={`/blog/${article.slug}/`}>
+  <article class="post-page">
+    <div class="container post-shell">
+      <aside class="toc" aria-label="文章目录">
+        <strong>目录</strong>
+        {article.sections.map((section, index) => (
+          <a href={`#${section.id}`} class={index === 0 ? "active" : ""}>{section.title}</a>
+        ))}
+      </aside>
+
+      <div class="post-content">
+        <a class="back-link" href="/blog/">返回文章列表</a>
+
+        <header class="post-header">
+          <div class="post-meta">
+            <time datetime={article.date}>{formattedDate}</time>
+            <span>共计{article.words}</span>
+            <span>预计需要{readMinutes}分钟</span>
+          </div>
+          <h1>{article.title}</h1>
+        </header>
+
+        <section class="rich-text">
+          <p>Karpathy——OpenAI 联合创始人、特斯拉自动驾驶 AI 负责人——写了 65 行配置文件，放到 GitHub 上，10 万人收藏。</p>
+          <p>里面没有新技术，没有新模型。就是一份禁令清单——告诉 AI 写代码的时候，你他妈别这么干。</p>
+
+          <h2 id="section-1">1、AI 写代码的三个顽疾</h2>
+          <p>Karpathy 的原文是英文，直接引过来：</p>
+          <p><strong>自作主张：</strong></p>
+          <blockquote>
+            <p>"The models make wrong assumptions on your behalf and just run along with them without checking. They don't manage their confusion, don't seek clarifications, don't surface inconsistencies, don't present tradeoffs, don't push back when they should."</p>
+          </blockquote>
+          <p>翻译成人话：AI 猜了个假设，猜错了也不停，不暴露矛盾，不展示取舍，该反驳时也不反驳。</p>
+
+          <p><strong>过度工程：</strong></p>
+          <p>100 行能搞定的硬写 1000 行，膨胀抽象层，不清理死代码。你说帮我写个函数，它给你搭了一套框架，顺便加了扩展性、配置项和异常处理——没要求，全给你。</p>
+
+          <p><strong>手伸太长：</strong></p>
+          <p>让它改 A，它顺手动了跟任务完全无关的 B、C、D。一个开发者说得很具体：修一个 bug，给你 40 行 diff，真正跟需求有关的只有 3 行，剩下 37 行是它顺手加的类型提示、引号格式化、变量重命名。真心有点拉。</p>
+          <p>三条顽疾，Karpathy 的药方只有一个字：堵。</p>
+
+          <h2 id="section-2">2、这 65 行写了什么</h2>
+          <p>四条原则，针对四类乱搞。</p>
+          <blockquote>
+            <p><strong>思考先行</strong> — 治自作主张</p>
+            <p>不确定就问，不准猜着跑</p>
+            <p>存在歧义时，把几种解读都列出来，等确认再动手</p>
+          </blockquote>
+          <blockquote>
+            <p><strong>简洁优先</strong> — 治过度工程</p>
+            <p>只写解决问题的最少代码</p>
+            <p>不加没要求的功能，不造不必要的抽象</p>
+          </blockquote>
+          <p>50 行能解决，不写 200 行。禁止"考虑未来扩展性"。</p>
+          <blockquote>
+            <p><strong>手术式改变</strong> — 治手伸太长</p>
+            <p>只改该改的，不动相邻代码和格式</p>
+            <p>你的改动产生了孤立代码，删掉；原有死代码，别碰</p>
+          </blockquote>
+          <p>改完对比 diff，每一行都要能追溯到需求。</p>
+          <blockquote>
+            <p><strong>目标驱动</strong> — 治方向跑偏</p>
+            <p>定义可验证的成功标准，把"怎么做"交给 AI</p>
+            <p>"让它工作"不算标准，"让这个测试通过"才算</p>
+          </blockquote>
+          <p>说白了就是：别说"帮我写登录函数"，说"写一个登录函数：30 秒超时，失败 3 次锁定，返回具体错误码"。目标越具体，AI 越难跑偏。</p>
+          <p>看出规律了吗？四条里没有一条在说"你要怎么写"。全是"你不准怎么搞"。</p>
+          <p>用 Karpathy 自己的话说：<strong>"把'怎么做'的权力给 AI，把'做什么'和'做到什么标准'留给自己。"</strong></p>
+          <p>这套东西真的管用吗？有人量化过。</p>
+
+          <h2 id="section-3">3、约束比模型更值钱</h2>
+          <p>AI 不是不够聪明，是管不住自己的手。越能干越乱搞，说白了就是没人立过规矩。</p>
+          <p>这套配置放在项目根目录的 <code>CLAUDE.md</code> 文件里，Claude Code 每次启动都会读，相当于每次对话前先给 AI 打一针清醒剂。GitHub 搜 <code>multica-ai/andrej-karpathy-skills</code>，把文件放进项目根目录，开箱即用。</p>
+          <p>比如这是我自己 <code>CLAUDE.md</code> 里的节选——</p>
+          <pre><code data-language="markdown">## 沟通方式
+先说结论，在说理由。
+遇到模糊需求，先给方案，再问要不要调整。
+不要恭维，一切用事实说话。
+跨层改动必须说清影响范围再动手。
+
+## 红线，必须经过我确认
+- 数据库 schema 变更或数据迁移
+- 修改对外 API 接口（路径、字段名、返回结构）
+- 修改 .env、密钥、token、CI/CD 配置
+- 生产部署、基础设施变更
+- 引入新的第三方服务（支付、鉴权、消息队列等）
+
+## 编码规范
+
+### 1. 编码前规划
+不确定就问，不准猜着干。
+涉及跨层改动，先说清前后端各改什么、顺序是什么，等确认再动手。
+存在歧义时列出所有解读，确认后再写。
+
+### 2. 代码简洁
+用最少的代码解决问题。
+不加没要求的功能，不造用不到的抽象。
+不为"将来可能的需求"预留接口或字段。
+
+### 3. 精准修改
+只改必须改的，不动无关代码。
+改了 API 接口，必须同步检查所有调用方。
+改了数据模型，必须检查所有读写路径。
+改动不能引入 N+1 查询，不能破坏事务边界。
+
+### 4. 目标驱动
+- "修复登录 bug" -> "写重现测试，通过，且不影响现有会话"
+- "优化列表接口" -> "P95 &lt; 200ms，不改返回字段"
+- "重构组件" -> "重构前后 E2E 测试通过"</code></pre>
+          <p>Coding 规范和 Karpathy 的四条一一对应，沟通方式和自主边界是延伸——规则不只管写代码，也得管它怎么开口、哪里不准碰。</p>
+          <p>我自己用完之后，最直观的是两件事：格式不乱动了，每行改动都能追到需求。以前最烦的场景——让它改一行逻辑，它顺手把整个文件的缩进风格都给你刷一遍——现在没有了。</p>
+          <p>用之前有两件事得知道。</p>
+          <p>第一，文件不能太长。超过 5000 字，关键约束被忽略的概率会上升——约束越写越多，每一条的权重反而越来越低，这叫「指令稀释」。65 行管用，就是因为够短。</p>
+          <p>第二，加一个「已犯错误」板块。AI 没有跨会话记忆，你这次纠正了它，下次打开新对话照样犯。解法是 AI 犯了错，让它自己把教训写进配置——下次启动读到，等于装了一个外挂的长期记忆。</p>
+          <p>效果有多明显？开发者 Joshua Sattler 用完这套规则之后，工作方式从"80% 手写 + 20% AI"彻底反转成了"80% AI Agent + 20% 人工修改"。前提只有一个：给 AI 划定了明确的行为边界。</p>
+          <p>Hacker News 上有人问了一个很扎心的问题：</p>
+          <blockquote>
+            <p><strong>"为什么 Karpathy 的编码原则没有成为 Claude Code 的默认配置？"</strong></p>
+          </blockquote>
+          <p>这个问题没有官方回答。但它说明一件事——连工具本身都没解决这个问题，靠用户自己想清楚。</p>
+          <p><strong>当前 AI 编程的最大杠杆，不是追更强的模型，是让现有模型每一行都写对。</strong></p>
+          <p>不只是变成，写稿也好，规划也好——没划清边界，AI 照样乱搞。</p>
+          <p>一份禁令清单，不是教 AI 做什么，是告诉它不要做什么。</p>
+          <p>别光看，去写你的 CLAUDE.md。管住 AI 的手，比升级 AI 的脑更值钱。</p>
+        </section>
+      </div>
+    </div>
+  </article>
+</BaseLayout>

@@ -1,0 +1,27 @@
+---
+type Props = {
+  compact?: boolean;
+  dark?: boolean;
+};
+
+const { compact = false, dark = false } = Astro.props;
+---
+
+<section
+  id="subscribe"
+  class:list={["subscribe-card", { compact, dark }]}
+  aria-labelledby={compact ? "subscribe-compact-title" : "subscribe-title"}
+>
+  <img
+    class="qr-code"
+    src="/images/qrcode_wechat.jpg"
+    alt="keinYe 公众号二维码"
+    width={compact ? "88" : "112"}
+    height={compact ? "88" : "112"}
+  />
+  <div>
+    <p class="eyebrow">WECHAT NOTES</p>
+    <h2 id={compact ? "subscribe-compact-title" : "subscribe-title"}>扫码关注公众号</h2>
+    <p>持续记录 AI 工具、工程实践、知识管理笔记。</p>
+  </div>
+</section>

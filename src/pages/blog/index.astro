@@ -1,0 +1,40 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { articles } from "../../data/articles";
+
+const categories = ["全部", "AI Coding"];
+---
+
+<BaseLayout title="文章 | keinYe" currentPath="/blog/">
+  <section class="section article-index-section">
+    <div class="container">
+      <div class="category-bar" aria-label="文章分类">
+        {categories.map((category, index) => (
+          <button type="button" class={index === 0 ? "active" : ""} aria-pressed={index === 0 ? "true" : "false"}>
+            {category}
+          </button>
+        ))}
+      </div>
+
+      <div class="post-list" aria-label="文章列表">
+        {articles.map((article) => (
+          <a class="post-row" href={`/blog/${article.slug}/`}>
+            <div class="post-time">
+              <time datetime={article.date}>{article.date}</time>
+              <span>{article.readTime}</span>
+            </div>
+            <div class="post-main">
+              <h2>{article.title}</h2>
+              <p>{article.summary}</p>
+            </div>
+            <span class="post-tag">{article.category}</span>
+          </a>
+        ))}
+      </div>
+
+      <nav class="pagination" aria-label="分页">
+        <span aria-current="page">1</span>
+      </nav>
+    </div>
+  </section>
+</BaseLayout>
