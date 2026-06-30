@@ -551,6 +551,10 @@ h3 {
   padding: 24px 0;
 }
 
+.post-row[hidden] {
+  display: none;
+}
+
 .post-time {
   display: grid;
   align-content: start;
