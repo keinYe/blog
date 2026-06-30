@@ -47,26 +47,26 @@ const categories = ["全部", ...Array.from(new Set(articles.map((article) => ar
       </nav>
     </div>
   </section>
-</BaseLayout>
 
-<script>
-  const buttons = document.querySelectorAll<HTMLButtonElement>(".category-bar button");
-  const rows = document.querySelectorAll<HTMLAnchorElement>(".post-list .post-row");
+  <script>
+    const buttons = document.querySelectorAll<HTMLButtonElement>(".category-bar button");
+    const rows = document.querySelectorAll<HTMLAnchorElement>(".post-list .post-row");
 
-  buttons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const target = button.dataset.category ?? "全部";
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.category ?? "全部";
 
-      buttons.forEach((b) => {
-        const isActive = b === button;
-        b.classList.toggle("active", isActive);
-        b.setAttribute("aria-pressed", isActive ? "true" : "false");
-      });
+        buttons.forEach((b) => {
+          const isActive = b === button;
+          b.classList.toggle("active", isActive);
+          b.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
 
-      rows.forEach((row) => {
-        const match = target === "全部" || row.dataset.category === target;
-        row.hidden = !match;
+        rows.forEach((row) => {
+          const match = target === "全部" || row.dataset.category === target;
+          row.hidden = !match;
+        });
       });
     });
-  });
-</script>
+  </script>
+</BaseLayout>
