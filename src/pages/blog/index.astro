@@ -11,7 +11,12 @@ const categories = ["全部", ...Array.from(new Set(articles.map((article) => ar
     <div class="container">
       <div class="category-bar" aria-label="文章分类">
         {categories.map((category, index) => (
-          <button type="button" class={index === 0 ? "active" : ""} aria-pressed={index === 0 ? "true" : "false"}>
+          <button
+            type="button"
+            class={index === 0 ? "active" : ""}
+            aria-pressed={index === 0 ? "true" : "false"}
+            data-category={category}
+          >
             {category}
           </button>
         ))}
@@ -19,7 +24,11 @@ const categories = ["全部", ...Array.from(new Set(articles.map((article) => ar
 
       <div class="post-list" aria-label="文章列表">
         {articles.map((article) => (
-          <a class="post-row" href={`/blog/${article.id.replace(/\.md$/, "")}/`}>
+          <a
+            class="post-row"
+            href={`/blog/${article.id.replace(/\.md$/, "")}/`}
+            data-category={article.data.category}
+          >
             <div class="post-time">
               <time datetime={article.data.date}>{article.data.date}</time>
               <span>{article.data.readTime}</span>
@@ -39,3 +48,25 @@ const categories = ["全部", ...Array.from(new Set(articles.map((article) => ar
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".category-bar button");
+  const rows = document.querySelectorAll<HTMLAnchorElement>(".post-list .post-row");
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.category ?? "全部";
+
+      buttons.forEach((b) => {
+        const isActive = b === button;
+        b.classList.toggle("active", isActive);
+        b.setAttribute("aria-pressed", isActive ? "true" : "false");
+      });
+
+      rows.forEach((row) => {
+        const match = target === "全部" || row.dataset.category === target;
+        row.hidden = !match;
+      });
+    });
+  });
+</script>
