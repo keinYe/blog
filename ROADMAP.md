@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-全站深色科技风 + 数字银河背景已落地（本地，未提交），等待人工预览确认。
+全站深色科技风 + 数字银河背景已上线 keinye.com（提交 `693024d`），等待真实浏览器下的效果与性能确认。
 
 ## 已完成
 
@@ -25,7 +25,7 @@
 
 ## 进行中
 
-- 等待人工预览确认全站新风格与数字银河背景（含真实浏览器下的 CPU / GPU 占用）。
+- 等待真实浏览器下确认全站新风格与数字银河背景（含 CPU / GPU 占用）。
 
 ## 待办
 
@@ -57,3 +57,4 @@
 - 2026-08-03：终端卡片定稿——固定外观尺寸 460 × 413（宽 460 + 终端体 380，移动端 92% 自适应），去掉浮动标签与漂浮动画，仅保留光标闪烁；修复 `hero-options.astro` 9 个 TS 错误（canvas 类型断言、参数类型、null 收窄）。`astro check` 0 errors / 0 warnings，`astro build` 通过，生成 7 个静态页面（含临时对比页 `/hero-options/`）。
 - 2026-08-03：清理宇航员方案遗留（删 `AstronautFigure.astro`、`public/images/astronaut.png`）与临时对比页 `hero-options.astro`；星空新增 5 颗随机闪现星（随机位置淡入闪耀带十字光芒，消失后 0.8–5.8s 随机延迟在新位置重现，reduced-motion 不出现）。`npm run build` 通过（0 errors），生成 6 个静态页面。
 - 2026-11-21 22:33 数字银河落地：`npm run build` 通过（astro check 0 errors / 0 warnings / 0 hints），生成 6 个静态页面；`npm run preview` 下 headless Chrome 截图确认首页（live）与文章页（reading）渲染正常。性能为预览页 headless 粗测：首页每帧主线程约 2.2ms @30fps（原约 5.0ms @60fps，每秒开销约降至 1/4.5）；GPU 侧（去模糊、DPR 1）与真实浏览器占用未测。
+- 2026-11-21 22:49 上线验证：提交 `693024d` 推送 main，GitHub Actions「Deploy to GitHub Pages」build 与 deploy 均成功；`https://keinye.com/` 返回页面已包含 `galaxy-canvas`。
