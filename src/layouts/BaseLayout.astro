@@ -2,22 +2,26 @@
 import "../styles/global.css";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import SkyBackground from "../components/SkyBackground.astro";
 
 type Props = {
   title: string;
   description?: string;
   currentPath?: string;
+  // 首页不渲染顶部导航（由 PageDots 圆点导航承担），子页面渲染极简顶栏
+  withNav?: boolean;
 };
 
 const {
   title,
   description = "keinYe 的个人内容站，记录 AI 工具、工程实践和知识管理。",
-  currentPath = Astro.url.pathname
+  currentPath = Astro.url.pathname,
+  withNav = true
 } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class:list={[{ snap: !withNav }]}>
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -25,8 +29,9 @@ const {
     <title>{title}</title>
   </head>
   <body>
+    <SkyBackground mode={withNav ? "reading" : "live"} />
     <a class="skip-link" href="#main">跳到正文</a>
-    <Nav currentPath={currentPath} />
+    {withNav && <Nav currentPath={currentPath} />}
     <main id="main">
       <slot />
     </main>

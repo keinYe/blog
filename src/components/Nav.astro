@@ -1,4 +1,5 @@
 ---
+// 子页面极简顶栏：完全透明浮在背景上，只保留品牌与回程链接。
 type Props = {
   currentPath: string;
 };
@@ -6,14 +7,11 @@ type Props = {
 const { currentPath } = Astro.props;
 
 const links = [
-  { href: "/", label: "首页", match: "/" },
   { href: "/blog/", label: "文章", match: "/blog" },
-  { href: "/#about", label: "关于", match: "#about" },
-  { href: "#contact", label: "联系", match: "#contact" }
+  { href: "/#contact", label: "联系", match: "#contact" }
 ];
 
 const isCurrent = (match: string) => {
-  if (match === "/") return currentPath === "/";
   if (match.startsWith("#")) return false;
   return currentPath.startsWith(match);
 };
@@ -25,7 +23,6 @@ const isCurrent = (match: string) => {
       <img src="/images/logo.png" alt="" width="34" height="34" />
       <span class="brand-text">
         <strong>keinYe</strong>
-        <span>AI 技术 & 产品实践</span>
       </span>
     </a>
 
@@ -39,7 +36,5 @@ const isCurrent = (match: string) => {
         </a>
       ))}
     </div>
-
-    <a class="nav-action" href="#subscribe">关注公众号</a>
   </nav>
 </header>

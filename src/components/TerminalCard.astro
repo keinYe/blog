@@ -1,0 +1,141 @@
+---
+// 首页 Hero 右侧的终端卡片：循环敲出命令，用命令行讲述身份与方向。
+---
+
+<div class="term-card" aria-hidden="true">
+  <div class="term-bar"><i></i><i></i><i></i><span>keinYe — zsh</span></div>
+  <div class="term-body"></div>
+</div>
+
+<style>
+  .term-card {
+    position: relative;
+    width: 460px;
+    max-width: 100%;
+    justify-self: end;
+    border-radius: 14px;
+    /* 完全透明、不加模糊：透出背后的银河，也避免动画背景上的 backdrop-filter 每帧重算 */
+    background: transparent;
+    border: 1px solid rgba(148, 163, 255, 0.18);
+    box-shadow:
+      0 30px 80px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(56, 249, 215, 0.05);
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(148, 163, 255, 0.12);
+  }
+  .term-bar i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .term-bar i:nth-child(1) {
+    background: #ff5f57;
+  }
+  .term-bar i:nth-child(2) {
+    background: #febc2e;
+  }
+  .term-bar i:nth-child(3) {
+    background: #28c840;
+  }
+  .term-bar span {
+    margin-left: 8px;
+    font-size: 11px;
+    color: rgba(226, 232, 255, 0.45);
+    letter-spacing: 0.06em;
+  }
+  .term-body {
+    padding: 16px 18px 20px;
+    height: 380px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.9;
+    color: rgba(226, 232, 255, 0.88);
+    white-space: pre-wrap;
+  }
+  .term-body :global(.t-prompt) {
+    color: #38f9d7;
+  }
+  .term-body :global(.t-dim) {
+    color: rgba(226, 232, 255, 0.5);
+  }
+  .term-body :global(.t-cursor) {
+    display: inline-block;
+    width: 8px;
+    height: 15px;
+    background: var(--signal);
+    vertical-align: -2px;
+    animation: t-blink 0.9s steps(1) infinite;
+  }
+  @keyframes t-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .term-card {
+      justify-self: center;
+      margin-top: 40px;
+      width: min(460px, 92%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .term-body :global(.t-cursor) {
+      animation: none !important;
+    }
+  }
+</style>
+
+<script>
+  const body = document.querySelector(".term-card .term-body");
+  if (body) {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const script = [
+      { cmd: "whoami", out: ["keinYe — 工程师 · 产品人 · 写作者"] },
+      { cmd: "cat focus.md", out: ["AI Coding / 产品与工程 / 知识管理 / 公众号创作"] },
+      { cmd: "ls ~/now", out: ["all-in-ai/", "blog.keinye.com/", "wechat-mp/"] },
+    ];
+    const cursor = '<span class="t-cursor"></span>';
+
+    if (reduced) {
+      body.innerHTML =
+        script
+          .map((s) => `<span class="t-prompt">$</span> ${s.cmd}\n<span class="t-dim">${s.out.join("\n")}</span>`)
+          .join("\n") + cursor;
+    } else {
+      let si = 0;
+      let ci = 0;
+      let html = "";
+      const step = () => {
+        if (si >= script.length) {
+          setTimeout(() => {
+            si = 0;
+            ci = 0;
+            html = "";
+            step();
+          }, 4200);
+          return;
+        }
+        const s = script[si];
+        if (ci <= s.cmd.length) {
+          body.innerHTML = html + `<span class="t-prompt">$</span> ${s.cmd.slice(0, ci)}` + cursor;
+          ci++;
+          setTimeout(step, 55 + Math.random() * 70);
+        } else {
+          html += `<span class="t-prompt">$</span> ${s.cmd}\n<span class="t-dim">${s.out.join("\n")}</span>\n`;
+          body.innerHTML = html + cursor;
+          si++;
+          ci = 0;
+          setTimeout(step, 700);
+        }
+      };
+      step();
+    }
+  }
+</script>

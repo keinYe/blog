@@ -1,0 +1,90 @@
+---
+// 首页左侧圆点导航（参考 stormzhang.ai 的 page indicator）：
+// 默认只显示圆点，hover 浮现标签，滚动时高亮当前 section。
+---
+
+<nav class="page-dots" aria-label="页面导航">
+  <a class="page-dot" href="#top" data-section="top"><span>首页</span></a>
+  <a class="page-dot" href="#about" data-section="about"><span>关于</span></a>
+  <a class="page-dot" href="#focus" data-section="focus"><span>在做什么</span></a>
+  <a class="page-dot" href="#articles" data-section="articles"><span>文章</span></a>
+  <a class="page-dot" href="#contact" data-section="contact"><span>联系</span></a>
+</nav>
+
+<style>
+  .page-dots {
+    position: fixed;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .page-dot {
+    position: relative;
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(230, 237, 243, 0.15);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .page-dot span {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: rgba(230, 237, 243, 0.5);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+
+  .page-dot:hover span,
+  .page-dot.active span {
+    opacity: 1;
+  }
+
+  .page-dot.active {
+    background: #38f9d7;
+    box-shadow: 0 0 10px rgba(56, 249, 215, 0.6);
+  }
+
+  .page-dot.active span {
+    color: #38f9d7;
+  }
+
+  @media (max-width: 1280px) {
+    .page-dots {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const dots = document.querySelectorAll<HTMLAnchorElement>(".page-dot");
+  const sections = Array.from(dots)
+    .map((dot) => document.getElementById(dot.dataset.section ?? ""))
+    .filter((el): el is HTMLElement => el !== null);
+
+  const activate = (id: string) => {
+    dots.forEach((dot) => dot.classList.toggle("active", dot.dataset.section === id));
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) activate(entry.target.id);
+      });
+    },
+    { rootMargin: "-40% 0px -55% 0px" }
+  );
+
+  sections.forEach((section) => observer.observe(section));
+</script>

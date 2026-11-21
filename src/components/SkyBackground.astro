@@ -1,0 +1,716 @@
+---
+// 全站固定背景：数字银河。
+// live（首页）：30fps 动画——粒子沿旋臂流动、坐标环 HUD、雷达扫描、目标锁定、探测器航线、字符粒子。
+// reading（其他页）：位置与大小同首页，关闭 HUD 与动效、亮度 × 0.8，只在滚动 / 缩放时重绘，旋转角跟随滚动。
+// 性能：粒子按「色桶 × 透明度档」分组批量绘制；光晕、HUD、字符预渲染到离屏 canvas；DPR 固定为 1。
+type Props = {
+  mode?: "live" | "reading";
+};
+
+const { mode = "reading" } = Astro.props;
+---
+
+<div class="sky" aria-hidden="true" data-mode={mode}>
+  <canvas id="galaxy-canvas"></canvas>
+</div>
+
+<style>
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 18% 60%, rgba(40, 20, 90, 0.35) 0%, transparent 50%),
+      radial-gradient(ellipse at 82% 18%, rgba(10, 50, 80, 0.3) 0%, transparent 45%),
+      radial-gradient(ellipse at 55% 90%, rgba(15, 30, 60, 0.3) 0%, transparent 50%),
+      linear-gradient(180deg, #07071a 0%, #050510 55%, #040410 100%);
+  }
+
+  /* 极淡扫描线 + 暗角，增加仪表感 */
+  .sky::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(2, 2, 10, 0.55) 100%);
+  }
+
+  #galaxy-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+</style>
+
+<script>
+  type Pt = [number, number];
+  type Particle = {
+    k: 0 | 1 | 2; // 0 旋臂 / 1 核球 / 2 盘面尘埃
+    base: number; // 旋臂起始角；核球与尘埃为初始角
+    off: number;
+    r: number;
+    h: number;
+    s: number;
+    a: number;
+    v: number;
+    g: string | null;
+    gt: number;
+    sx: number;
+    sy: number;
+    alpha: number;
+    theta: number;
+  };
+  type Twinkler = { x: number; y: number; s: number; base: number; amp: number; sp: number; ph: number };
+  type Target = { p: Particle; born: number; life: number; id: string; dist: string };
+  type Probe = { p0: Pt; p1: Pt; p2: Pt; born: number; dur: number; id: string };
+
+  function initGalaxy(sky: HTMLElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reading = sky.dataset.mode !== "live";
+    const showHud = !reading;
+    const showGlyphs = !reading;
+    const animated = !reading && !reduced; // 扫描、目标锁定、探测器、循环动画
+    const brightness = reading ? 0.8 : 1;
+
+    const FPS = 30; // 转速很慢，30fps 与 60fps 肉眼无差别
+    const SCROLL_ROT = 0.0004; // reading 模式每滚动 1px 旋转的弧度
+
+    const TAU = Math.PI * 2;
+    const SQUISH = 0.4; // 盘面倾角（纵向压缩）
+    const ROLL = -0.3; // 盘面在屏幕上的倾斜
+    const K = 3.3; // 旋臂缠绕度
+    const R0 = 0.06; // 旋臂起点半径
+    const cosR = Math.cos(ROLL);
+    const sinR = Math.sin(ROLL);
+
+    // 冷星光配色；品牌青只在扫描命中时出现；琥珀为信号色
+    const PALETTE = ["rgb(234,246,255)", "rgb(200,224,255)", "rgb(160,200,255)", "rgb(127,184,255)", "rgb(91,124,250)", "rgb(124,108,240)"];
+    const HIT_COLOR = "rgb(56,249,215)";
+    const GLYPH_COLOR = "rgb(150,190,255)";
+    const RING = "127,184,255";
+    const LABEL = "170,200,255";
+    const ARC_A = "rgba(127,184,255,0.38)";
+    const ARC_B = "rgba(124,108,240,0.32)";
+    const SWEEP = "56,249,215";
+    const SIGNAL = "255,181,71";
+    const CORE: [number, string][] = [[0, "rgba(236,246,255,0.55)"], [0.1, "rgba(190,215,255,0.30)"], [0.4, "rgba(110,150,250,0.12)"], [1, "rgba(110,150,250,0)"]];
+    const HALO: [number, string][] = [[0, "rgba(70,110,240,0.16)"], [0.5, "rgba(100,80,220,0.06)"], [1, "rgba(100,80,220,0)"]];
+    const MONO = '"JetBrains Mono", ui-monospace, monospace';
+
+    const rand = Math.random;
+    const gauss = () => {
+      let u = 0;
+      while (!u) u = rand();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * rand());
+    };
+    const hex = (n: number) => Math.floor(rand() * 16 ** n).toString(16).toUpperCase().padStart(n, "0");
+
+    // 粒子分组：7 个色桶（6 档半径 + 扫描命中）× 6 档透明度，每组一次 fill
+    const bucketOf = (r: number) => (r < 0.08 ? 0 : r < 0.2 ? 1 : r < 0.4 ? 2 : r < 0.6 ? 3 : r < 0.85 ? 4 : 5);
+    const HIT = 6;
+    const LEVELS = [0.1, 0.2, 0.32, 0.48, 0.7, 1];
+    const levelOf = (a: number) => (a < 0.15 ? 0 : a < 0.26 ? 1 : a < 0.4 ? 2 : a < 0.58 ? 3 : a < 0.82 ? 4 : 5);
+    const groups: Particle[][] = Array.from({ length: 7 * LEVELS.length }, () => []);
+
+    const GLYPHS = "0101010110ABCDEF";
+    const GLYPH_SET = "01ABCDEF";
+    const GLYPH_W = 8;
+    const GLYPH_H = 12;
+
+    const ctxOf = (c: HTMLCanvasElement) => c.getContext("2d") as CanvasRenderingContext2D;
+    const starLayer = document.createElement("canvas");
+    const glowLayer = document.createElement("canvas");
+    const hudLayer = document.createElement("canvas");
+    const glyphLayer = document.createElement("canvas");
+
+    let W = 0;
+    let H = 0;
+    let R = 0;
+    let cx = 0;
+    let cy = 0;
+    let ox = 0;
+    let oy = 0;
+    let pointerX = 0;
+    let pointerY = 0;
+    let parts: Particle[] = [];
+    let twinklers: Twinkler[] = [];
+    let targets: Target[] = [];
+    let probe: Probe | null = null;
+    let phi = 0;
+    let sweepA = 0;
+    let nextTargetAt = 0;
+    let nextProbeAt = 0;
+    let glowHW = 0;
+    let glowHH = 0;
+    let hudHW = 0;
+    let hudHH = 0;
+
+    function projectAt(x0: number, y0: number, r: number, theta: number, h: number): Pt {
+      const lx = Math.cos(theta) * r;
+      const ly = Math.sin(theta) * r * SQUISH - h;
+      return [x0 + (lx * cosR - ly * sinR) * R, y0 + (lx * sinR + ly * cosR) * R];
+    }
+    const project = (r: number, theta: number) => projectAt(cx, cy, r, theta, 0);
+
+    function particle(k: 0 | 1 | 2, base: number, off: number, r: number, h: number, s: number, a: number, v: number): Particle {
+      return { k, base, off, r, h, s, a, v, g: null, gt: 0, sx: 0, sy: 0, alpha: 0, theta: 0 };
+    }
+
+    function build() {
+      parts = [];
+      const n = Math.round(Math.min(5000, Math.max(2200, (W * H) / 260)));
+      for (let i = 0; i < n; i++) {
+        const t = rand();
+        if (t < 0.72) {
+          const major = rand() < 0.78;
+          const base = major ? (rand() < 0.5 ? 0 : Math.PI) : rand() < 0.5 ? Math.PI / 2 : Math.PI * 1.5;
+          const p = particle(
+            0,
+            base,
+            gauss() * (major ? 0.17 : 0.11),
+            R0 + Math.pow(rand(), 0.85) * (1 - R0),
+            gauss() * 0.012,
+            rand() < 0.08 ? 2.4 : 1.6,
+            (major ? 0.5 : 0.32) * (0.4 + rand() * 0.6),
+            0.6 + rand() * 0.8
+          );
+          if (p.r > 0.25 && rand() < 0.02) p.g = GLYPHS[Math.floor(rand() * GLYPHS.length)];
+          parts.push(p);
+        } else if (t < 0.84) {
+          parts.push(particle(1, rand() * TAU, 0, Math.abs(gauss()) * 0.085, gauss() * 0.03, 1.6, 0.36 + rand() * 0.24, 0));
+        } else {
+          parts.push(particle(2, rand() * TAU, 0, 0.1 + Math.pow(rand(), 0.7) * 0.95, gauss() * 0.02, 1.2, 0.1 + rand() * 0.2, 0));
+        }
+      }
+    }
+
+    function buildStars() {
+      starLayer.width = W;
+      starLayer.height = H;
+      const c = ctxOf(starLayer);
+      const colors = ["#C8D4E8", "#AAB8D0", "#E8EEF8", "#9BB8E0"];
+      const count = Math.min(600, Math.floor((W * H) / 2600));
+      for (let i = 0; i < count; i++) {
+        const s = rand() < 0.05 ? 1.4 + rand() : 0.4 + rand() * 0.8;
+        c.globalAlpha = 0.1 + rand() * 0.45;
+        c.fillStyle = colors[Math.floor(rand() * colors.length)];
+        c.fillRect(rand() * W, rand() * H, s, s);
+      }
+      twinklers = Array.from({ length: Math.min(90, Math.floor((W * H) / 14000)) }, () => ({
+        x: rand() * W,
+        y: rand() * H,
+        s: 0.8 + rand() * 1.1,
+        base: 0.25 + rand() * 0.3,
+        amp: 0.2 + rand() * 0.3,
+        sp: 0.4 + rand() * 1.1,
+        ph: rand() * TAU
+      }));
+    }
+
+    // 光晕预渲染：每帧只需一次 drawImage
+    function buildGlow() {
+      glowHW = Math.ceil(R * 1.05);
+      glowHH = Math.ceil(R * 0.56);
+      glowLayer.width = glowHW * 2;
+      glowLayer.height = glowHH * 2;
+      const g = ctxOf(glowLayer);
+      g.translate(glowHW, glowHH);
+      g.rotate(ROLL);
+      g.globalCompositeOperation = "lighter";
+      g.save();
+      g.scale(1, SQUISH * 1.1);
+      const halo = g.createRadialGradient(0, 0, 0, 0, 0, R * 1.05);
+      for (const [o, c] of HALO) halo.addColorStop(o, c);
+      g.fillStyle = halo;
+      g.fillRect(-R * 1.05, -R * 1.05, R * 2.1, R * 2.1);
+      g.restore();
+      g.scale(1, SQUISH * 1.35);
+      const core = g.createRadialGradient(0, 0, 0, 0, 0, R * 0.26);
+      for (const [o, c] of CORE) core.addColorStop(o, c);
+      g.fillStyle = core;
+      g.fillRect(-R * 0.26, -R * 0.26, R * 0.52, R * 0.52);
+    }
+
+    // 静态 HUD 预渲染：坐标环、轴线、刻度、方位角与标注
+    function buildHud() {
+      if (!showHud) return;
+      hudHW = Math.ceil(R * 1.25) + 40;
+      hudHH = Math.ceil(R * 0.62) + 40;
+      hudLayer.width = hudHW * 2;
+      hudLayer.height = hudHH * 2;
+      const c = ctxOf(hudLayer);
+      const P = (r: number, a: number) => projectAt(hudHW, hudHH, r, a, 0);
+      c.lineWidth = 1;
+      c.strokeStyle = `rgba(${RING},0.11)`;
+      c.setLineDash([2, 6]);
+      for (const r of [0.25, 0.5, 0.75]) {
+        c.beginPath();
+        c.ellipse(hudHW, hudHH, r * R, r * R * SQUISH, ROLL, 0, TAU);
+        c.stroke();
+      }
+      c.strokeStyle = `rgba(${RING},0.07)`;
+      for (const a of [0, Math.PI / 2]) {
+        const [x1, y1] = P(1.06, a);
+        const [x2, y2] = P(1.06, a + Math.PI);
+        c.beginPath();
+        c.moveTo(x1, y1);
+        c.lineTo(x2, y2);
+        c.stroke();
+      }
+      c.setLineDash([]);
+      c.strokeStyle = `rgba(${RING},0.13)`;
+      c.beginPath();
+      c.ellipse(hudHW, hudHH, R, R * SQUISH, ROLL, 0, TAU);
+      c.stroke();
+      c.strokeStyle = `rgba(${RING},0.22)`;
+      c.beginPath();
+      for (let d = 0; d < 360; d += 5) {
+        const a = (d / 180) * Math.PI;
+        const [x1, y1] = P(1.06, a);
+        const [x2, y2] = P(d % 30 === 0 ? 1.1 : 1.075, a);
+        c.moveTo(x1, y1);
+        c.lineTo(x2, y2);
+      }
+      c.stroke();
+      c.font = `10px ${MONO}`;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      c.fillStyle = `rgba(${LABEL},0.32)`;
+      for (let d = 0; d < 360; d += 30) {
+        const [x, y] = P(1.16, (d / 180) * Math.PI);
+        c.fillText(String(d).padStart(3, "0"), x, y);
+      }
+      const [lx, ly] = P(1.0, 1.95);
+      c.textAlign = "left";
+      c.fillStyle = `rgba(${LABEL},0.38)`;
+      c.fillText("SURVEY GRID · R 50 kly", lx + 10, ly - 8);
+    }
+
+    // 字符精灵图：避免逐个 fillText
+    function buildGlyphs() {
+      if (!showGlyphs) return;
+      glyphLayer.width = GLYPH_W * GLYPH_SET.length;
+      glyphLayer.height = GLYPH_H;
+      const g = ctxOf(glyphLayer);
+      g.font = `9px ${MONO}`;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillStyle = GLYPH_COLOR;
+      for (let i = 0; i < GLYPH_SET.length; i++) g.fillText(GLYPH_SET[i], i * GLYPH_W + GLYPH_W / 2, GLYPH_H / 2);
+    }
+
+    function resize() {
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W;
+      canvas.height = H;
+      R = W < 900 ? W * 0.72 : Math.min(W, H * 1.8) * 0.42;
+      build();
+      buildStars();
+      buildGlow();
+      buildHud();
+      buildGlyphs();
+      targets = [];
+      probe = null;
+    }
+
+    function anchor() {
+      const [fx, fy] = W < 900 ? [0.5, 0.3] : [0.5, 0.52];
+      const scrollShift = reading ? 0 : Math.min(window.scrollY, H) * 0.12;
+      cx = W * fx + ox;
+      cy = H * fy + oy - scrollShift;
+    }
+
+    function drawGlow() {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = Math.min(1, brightness);
+      ctx.drawImage(glowLayer, cx - glowHW, cy - glowHH);
+      ctx.restore();
+    }
+
+    // HUD 静态层一次贴图，只有核心旋转弧逐帧画
+    function drawHud() {
+      ctx.drawImage(hudLayer, cx - hudHW, cy - hudHH);
+      ctx.save();
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = ARC_A;
+      for (let i = 0; i < 2; i++) {
+        const a0 = phi * 6 + i * Math.PI;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 0.13 * R, 0.13 * R * SQUISH, ROLL, a0, a0 + 0.9);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = ARC_B;
+      for (let i = 0; i < 3; i++) {
+        const a0 = -phi * 4 + (i * TAU) / 3;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 0.17 * R, 0.17 * R * SQUISH, ROLL, a0, a0 + 0.45);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // 雷达扫描：在盘面坐标系里画圆形扇面，参数角与粒子角度一致
+    function drawSweep() {
+      const span = 0.7;
+      const a0 = sweepA - span;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(ROLL);
+      ctx.scale(1, SQUISH);
+      const cg = ctx.createConicGradient(a0, 0, 0);
+      cg.addColorStop(0, `rgba(${SWEEP},0)`);
+      cg.addColorStop(span / TAU, `rgba(${SWEEP},0.09)`);
+      cg.addColorStop(span / TAU + 0.001, `rgba(${SWEEP},0)`);
+      cg.addColorStop(1, `rgba(${SWEEP},0)`);
+      ctx.fillStyle = cg;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R * 1.06, a0, sweepA);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      const [ex, ey] = project(1.06, sweepA);
+      const g = ctx.createLinearGradient(cx, cy, ex, ey);
+      g.addColorStop(0, `rgba(${SWEEP},0.05)`);
+      g.addColorStop(1, `rgba(${SWEEP},0.5)`);
+      ctx.save();
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function updateParticles(dt: number) {
+      for (const g of groups) g.length = 0;
+      const flow = dt * 0.012;
+      const nL = LEVELS.length;
+      for (const p of parts) {
+        let theta: number;
+        let fade = 1;
+        if (p.k === 0) {
+          // 粒子沿旋臂向外流动，到边缘后回到起点
+          p.r += flow * p.v * (0.35 + p.r);
+          if (p.r > 1.02) p.r = R0 + rand() * 0.04;
+          theta = p.base - K * Math.log(p.r / R0) + p.off + phi;
+          fade = Math.min(1, (p.r - R0) / 0.05, (1.02 - p.r) / 0.15);
+        } else if (p.k === 1) {
+          theta = p.base + phi * 1.8;
+        } else {
+          theta = p.base + phi * (0.6 / (0.3 + p.r));
+        }
+        let boost = 1;
+        if (animated) {
+          const diff = (((sweepA - theta) % TAU) + TAU) % TAU;
+          if (diff < 0.7) boost += 1.8 * (1 - diff / 0.7) ** 2;
+        }
+        const lx = Math.cos(theta) * p.r;
+        const ly = Math.sin(theta) * p.r * SQUISH - p.h;
+        const sx = cx + (lx * cosR - ly * sinR) * R;
+        const sy = cy + (lx * sinR + ly * cosR) * R;
+        p.sx = sx;
+        p.sy = sy;
+        p.theta = theta;
+        p.alpha = Math.min(1, p.a * fade * boost * brightness);
+        if (p.alpha < 0.05) continue;
+        if (sx < -4 || sy < -4 || sx > W + 4 || sy > H + 4) continue;
+        if (p.g && showGlyphs) continue;
+        // 被扫描命中的粒子短暂变成品牌青
+        const b = boost > 1.6 ? HIT : bucketOf(p.r);
+        groups[b * nL + levelOf(p.alpha)].push(p);
+      }
+    }
+
+    function drawParticles(now: number) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const nL = LEVELS.length;
+      for (let i = 0; i < groups.length; i++) {
+        const g = groups[i];
+        if (!g.length) continue;
+        const b = Math.floor(i / nL);
+        ctx.fillStyle = b === HIT ? HIT_COLOR : PALETTE[b];
+        ctx.globalAlpha = LEVELS[i % nL];
+        ctx.beginPath();
+        for (const p of g) ctx.rect(p.sx, p.sy, p.s, p.s);
+        ctx.fill();
+      }
+      if (showGlyphs) {
+        for (const p of parts) {
+          if (!p.g || p.alpha < 0.05) continue;
+          if (animated && now > p.gt) {
+            p.g = GLYPHS[Math.floor(rand() * GLYPHS.length)];
+            p.gt = now + 200 + rand() * 1000;
+          }
+          const i = GLYPH_SET.indexOf(p.g);
+          ctx.globalAlpha = Math.min(0.45, p.alpha * 1.1);
+          ctx.drawImage(glyphLayer, i * GLYPH_W, 0, GLYPH_W, GLYPH_H, p.sx - GLYPH_W / 2, p.sy - GLYPH_H / 2, GLYPH_W, GLYPH_H);
+        }
+      }
+      ctx.restore();
+    }
+
+    // 目标锁定：瞄准框收缩 → 脉冲环 → 逐字打出编号与坐标
+    function spawnTarget(now: number) {
+      for (let tries = 0; tries < 30; tries++) {
+        const p = parts[Math.floor(rand() * parts.length)];
+        if (p.k !== 0 || p.r < 0.3 || p.r > 0.92) continue;
+        if (p.sx < 40 || p.sx > W - 200 || p.sy < 60 || p.sy > H - 60) continue;
+        targets.push({ p, born: now, life: 3600, id: `SIG-${hex(4)}`, dist: (p.r * 50).toFixed(1) });
+        return;
+      }
+    }
+
+    function drawTargets(now: number) {
+      ctx.save();
+      ctx.font = `10px ${MONO}`;
+      ctx.textBaseline = "alphabetic";
+      ctx.textAlign = "left";
+      for (const t of targets) {
+        const e = now - t.born;
+        const alpha = Math.min(1, e / 250, (t.life - e) / 500);
+        const q = Math.min(1, e / 450);
+        const size = 28 - 14 * (1 - (1 - q) ** 3);
+        const x = t.p.sx;
+        const y = t.p.sy;
+        const h = size / 2;
+        const c = 5;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = `rgba(${SIGNAL},0.85)`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          ctx.moveTo(x + dx * h, y + dy * (h - c));
+          ctx.lineTo(x + dx * h, y + dy * h);
+          ctx.lineTo(x + dx * (h - c), y + dy * h);
+        }
+        ctx.stroke();
+        ctx.fillStyle = "rgba(236,246,255,0.95)";
+        ctx.fillRect(x - 1, y - 1, 2, 2);
+
+        if (q >= 1) {
+          const pulse = (e - 450) / 600;
+          if (pulse < 1) {
+            ctx.globalAlpha = alpha * (1 - pulse) * 0.6;
+            ctx.beginPath();
+            ctx.arc(x, y, 7 + pulse * 22, 0, TAU);
+            ctx.stroke();
+            ctx.globalAlpha = alpha;
+          }
+          const lx = x + h + 2;
+          const ly = y - h - 2;
+          ctx.strokeStyle = `rgba(${SIGNAL},0.5)`;
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx + 16, ly - 16);
+          ctx.lineTo(lx + 124, ly - 16);
+          ctx.stroke();
+          const bearing = String(Math.round(((((t.p.theta % TAU) + TAU) % TAU) / Math.PI) * 180)).padStart(3, "0");
+          const line2 = `${t.dist} kly · ${bearing}°`;
+          const shown = Math.max(0, Math.floor((e - 450) / 22));
+          ctx.fillStyle = `rgba(${SIGNAL},0.9)`;
+          ctx.fillText(t.id.slice(0, shown), lx + 18, ly - 21);
+          ctx.fillStyle = "rgba(185,195,214,0.65)";
+          ctx.fillText(line2.slice(0, Math.max(0, shown - t.id.length)), lx + 18, ly - 4);
+        }
+      }
+      ctx.restore();
+    }
+
+    // 深空探测器：沿二次贝塞尔航线飞向银河，带尾迹与 ETA
+    function spawnProbe(now: number) {
+      const fromLeft = rand() < 0.6;
+      const p0: Pt = fromLeft ? [-0.05 * W, H * (0.65 + rand() * 0.35)] : [W * (0.05 + rand() * 0.3), -0.05 * H];
+      const p2 = project(0.75 + rand() * 0.2, rand() * TAU);
+      const mx = (p0[0] + p2[0]) / 2;
+      const my = (p0[1] + p2[1]) / 2;
+      const p1: Pt = [mx + (rand() - 0.5) * W * 0.3, my - H * (0.15 + rand() * 0.2)];
+      probe = { p0, p1, p2, born: now, dur: 15000, id: `KY-${Math.floor(rand() * 90) + 10}` };
+    }
+
+    function bez(t: number, a: Pt, b: Pt, c: Pt): Pt {
+      const u = 1 - t;
+      return [u * u * a[0] + 2 * u * t * b[0] + t * t * c[0], u * u * a[1] + 2 * u * t * b[1] + t * t * c[1]];
+    }
+
+    function drawProbe(pr: Probe, now: number) {
+      const { p0, p1, p2, born, dur, id } = pr;
+      const t = (now - born) / dur;
+      if (t > 1.25) {
+        probe = null;
+        nextProbeAt = now + 2500 + rand() * 3000;
+        return;
+      }
+      const head = Math.min(1, t);
+      const fadeOut = t > 1 ? 1 - (t - 1) / 0.25 : 1;
+      ctx.save();
+      ctx.globalAlpha = 0.22 * fadeOut;
+      ctx.strokeStyle = "rgb(96,165,250)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 6]);
+      ctx.beginPath();
+      for (let i = 0; i <= 48; i++) {
+        const [x, y] = bez(i / 48, p0, p1, p2);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = `rgb(${SIGNAL})`;
+      const steps = 16;
+      for (let i = 0; i < steps; i++) {
+        const [x1, y1] = bez(Math.max(0, head - 0.12 + (0.12 * i) / steps), p0, p1, p2);
+        const [x2, y2] = bez(Math.max(0, head - 0.12 + (0.12 * (i + 1)) / steps), p0, p1, p2);
+        ctx.globalAlpha = ((i + 1) / steps) * 0.8 * fadeOut;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+      const [hx, hy] = bez(head, p0, p1, p2);
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, 12);
+      g.addColorStop(0, "rgba(255,240,215,0.95)");
+      g.addColorStop(1, `rgba(${SIGNAL},0)`);
+      ctx.globalAlpha = fadeOut;
+      ctx.fillStyle = g;
+      ctx.fillRect(hx - 12, hy - 12, 24, 24);
+      ctx.globalCompositeOperation = "source-over";
+      if (t >= 1) {
+        const k = (t - 1) / 0.25;
+        ctx.globalAlpha = (1 - k) * 0.7;
+        ctx.beginPath();
+        ctx.ellipse(p2[0], p2[1], 6 + k * 40, (6 + k * 40) * SQUISH, ROLL, 0, TAU);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.8 * fadeOut;
+      ctx.font = `10px ${MONO}`;
+      ctx.fillStyle = `rgba(${SIGNAL},0.85)`;
+      ctx.fillText(`PROBE ${id}`, hx + 12, hy - 10);
+      ctx.fillStyle = "rgba(185,195,214,0.55)";
+      ctx.fillText(`ETA ${Math.max(0, ((1 - head) * dur) / 1000).toFixed(1)}s`, hx + 12, hy + 3);
+      ctx.restore();
+    }
+
+    function render(now: number, dt: number) {
+      if (animated) {
+        ox += (pointerX * 16 - ox) * 0.08;
+        oy += (pointerY * 10 - oy) * 0.08;
+        phi += dt * 0.045;
+        sweepA += dt * 0.42;
+      }
+      anchor();
+
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(starLayer, ox * 0.25, oy * 0.25);
+
+      ctx.fillStyle = "#E8F4FF";
+      for (const s of twinklers) {
+        ctx.globalAlpha = Math.max(0.05, s.base + s.amp * Math.sin((now / 1000) * s.sp + s.ph));
+        ctx.fillRect(s.x + ox * 0.25, s.y + oy * 0.25, s.s, s.s);
+      }
+      ctx.globalAlpha = 1;
+
+      drawGlow();
+      if (showHud) drawHud();
+      if (animated) drawSweep();
+      updateParticles(dt);
+      drawParticles(now);
+
+      if (animated) {
+        if (now >= nextTargetAt && targets.length < 2) {
+          spawnTarget(now);
+          nextTargetAt = now + 2200 + rand() * 2600;
+        }
+        targets = targets.filter((t) => now - t.born < t.life);
+        drawTargets(now);
+
+        if (!probe && now >= nextProbeAt) spawnProbe(now);
+        if (probe) drawProbe(probe, now);
+      }
+    }
+
+    // ---------- 调度 ----------
+    let staticQueued = false;
+
+    // 静态模式（reading / 减少动态）：只在需要时重画一帧
+    function requestStatic() {
+      if (staticQueued) return;
+      staticQueued = true;
+      requestAnimationFrame((now) => {
+        staticQueued = false;
+        if (reading) phi = window.scrollY * SCROLL_ROT;
+        render(now, 0);
+      });
+    }
+
+    resize();
+    window.addEventListener("resize", () => {
+      if (window.innerWidth === W && window.innerHeight === H) return;
+      resize();
+      if (!animated) requestStatic();
+    });
+    // 等等宽字体加载完，重建含文字的离屏层
+    document.fonts.ready.then(() => {
+      buildHud();
+      buildGlyphs();
+      if (!animated) requestStatic();
+    });
+
+    if (!animated) {
+      window.addEventListener("scroll", requestStatic, { passive: true });
+      requestStatic();
+      return;
+    }
+
+    window.addEventListener("pointermove", (e) => {
+      pointerX = (e.clientX / W) * 2 - 1;
+      pointerY = (e.clientY / H) * 2 - 1;
+    });
+
+    let running = true;
+    let rafId = 0;
+    let lastDraw = 0;
+
+    function frame(now: number) {
+      if (!running) return;
+      rafId = requestAnimationFrame(frame);
+      if (lastDraw && now - lastDraw < 1000 / FPS - 2) return;
+      const dt = lastDraw ? Math.min(0.1, (now - lastDraw) / 1000) : 0;
+      lastDraw = now;
+      render(now, dt);
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        running = false;
+        cancelAnimationFrame(rafId);
+      } else if (!running) {
+        running = true;
+        lastDraw = 0;
+        rafId = requestAnimationFrame(frame);
+      }
+    });
+
+    nextTargetAt = performance.now() + 1200;
+    nextProbeAt = performance.now() + 2000;
+    rafId = requestAnimationFrame(frame);
+  }
+
+  const sky = document.querySelector<HTMLElement>(".sky");
+  const canvas = document.getElementById("galaxy-canvas") as HTMLCanvasElement | null;
+  const ctx = canvas?.getContext("2d");
+  if (sky && canvas && ctx) initGalaxy(sky, canvas, ctx);
+</script>

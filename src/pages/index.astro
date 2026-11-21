@@ -2,7 +2,8 @@
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ArticleCard from "../components/ArticleCard.astro";
-import SubscribeCard from "../components/SubscribeCard.astro";
+import PageDots from "../components/PageDots.astro";
+import TerminalCard from "../components/TerminalCard.astro";
 
 const articles = (await getCollection("blog")).sort((a, b) => b.data.date.localeCompare(a.data.date));
 const featuredArticle = articles.find((article) => article.data.featured) ?? articles[0];
@@ -10,47 +11,104 @@ const latestArticles = articles.filter((article) => article.id !== featuredArtic
 const hasLatestArticles = latestArticles.length > 0;
 ---
 
-<BaseLayout title="keinYe | AI 技术与产品实践">
-  <section class="home-hero section">
+<BaseLayout title="keinYe | 工程师 · 产品人 · 写作者" withNav={false}>
+  <PageDots />
+  <section class="home-hero" id="top">
     <div class="container hero-grid">
       <div class="hero-copy">
-        <h1>将 AI 工具实践、产品判断和工程经验，沉淀为长期档案</h1>
-        <p class="lead">
-          用工具改变工作方式，用规则固化经验，记录软件、产品与内容工作的长期迭代。
-        </p>
-        <div class="hero-actions">
-          <a class="button primary" href="/blog/">查看文章</a>
-          <a class="button secondary" href="#about">了解作者</a>
+        <p class="hero-badge">keinYe</p>
+        <h1 class="hero-title">工程师 · 产品人 · 写作者</h1>
+        <div class="hero-tags">
+          <span class="hero-tag">AI Coding</span>
+          <span class="hero-tag">产品与工程</span>
+          <span class="hero-tag">知识管理</span>
+          <span class="hero-tag">公众号创作</span>
+        </div>
+      </div>
+      <TerminalCard />
+    </div>
+    <a class="scroll-hint" href="#about" aria-label="向下滚动到关于我">
+      <span class="scroll-arrow"></span>
+    </a>
+  </section>
+
+  <section class="section" id="about">
+    <div class="container">
+      <p class="eyebrow reveal">ABOUT</p>
+      <h2 class="section-title reveal">关于我</h2>
+
+      <div class="timeline reveal">
+        <div class="timeline-node">
+          <strong>DEV</strong>
+          <span>程序开发</span>
+        </div>
+        <div class="timeline-node">
+          <strong>PRODUCT</strong>
+          <span>产品与工程</span>
+        </div>
+        <div class="timeline-node">
+          <strong>WRITING</strong>
+          <span>公众号写作</span>
+        </div>
+        <div class="timeline-node">
+          <strong>NOW</strong>
+          <span>All in AI</span>
         </div>
       </div>
 
-      <aside class="hero-panel" aria-label="内容主线">
-        <div class="topic-list">
-          <div>
-            <h2>AI 编程工具</h2>
-            <p>从体验到实践，记录 AI 编程带来的效率变化。</p>
-          </div>
-          <div>
-            <h2>产品与工程</h2>
-            <p>把产品目标、技术路径和交付约束放在一起分析。</p>
-          </div>
-          <div>
-            <h2>知识管理</h2>
-            <p>把个人经验整理成规则、模板和可复用的工作流。</p>
-          </div>
+      <div class="about-stats reveal">
+        <div class="stat-item">
+          <strong>工程师 · 产品人</strong>
+          <span>长期在软件、产品和内容之间工作</span>
         </div>
-        <SubscribeCard compact dark />
-      </aside>
+        <div class="stat-item">
+          <strong>公众号写作者</strong>
+          <span>系列文章「用 AI 做一个个人网站」</span>
+        </div>
+        <div class="stat-item">
+          <strong>All in AI</strong>
+          <span>实践、复盘、规则沉淀</span>
+        </div>
+      </div>
+
+      <blockquote class="about-quote reveal">
+        用工具改变工作方式，用规则固化经验，记录软件、产品与内容工作的长期迭代。
+      </blockquote>
     </div>
   </section>
 
-  <div class="transition-band" aria-hidden="true"></div>
-
-  <section class="section">
+  <section class="section" id="focus">
     <div class="container">
-      <div class="section-heading">
-        <p class="eyebrow">LATEST NOTES</p>
-        <h2>最新文章</h2>
+      <p class="eyebrow reveal">FOCUS</p>
+      <h2 class="section-title reveal">我在做什么</h2>
+      <div class="focus-grid">
+        <div class="focus-card reveal">
+          <h3>公众号创作</h3>
+          <p>以「用 AI 做一个个人网站」系列为主线，记录用 AI 工具做产品的真实过程。</p>
+        </div>
+        <div class="focus-card reveal">
+          <h3>AI 编程工具</h3>
+          <p>从体验到实践，记录 AI 编程带来的效率变化和工作流改造。</p>
+        </div>
+        <div class="focus-card reveal">
+          <h3>产品与工程</h3>
+          <p>把产品目标、技术路径和交付约束放在一起分析，不做纸上谈兵。</p>
+        </div>
+        <div class="focus-card reveal">
+          <h3>知识管理</h3>
+          <p>把个人经验整理成规则、模板和可复用的工作流，沉淀为长期资产。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="articles">
+    <div class="container">
+      <div class="section-heading reveal">
+        <div>
+          <p class="eyebrow">LATEST NOTES</p>
+          <h2 class="section-title" style="margin-bottom: 0;">最新文章</h2>
+        </div>
         <a href="/blog/">查看全部</a>
       </div>
       <div class:list={["home-articles", { single: !hasLatestArticles }]}>
@@ -64,15 +122,45 @@ const hasLatestArticles = latestArticles.length > 0;
     </div>
   </section>
 
-  <section class="section about-section" id="about">
-    <div class="container about-grid">
-      <div>
-        <p class="eyebrow">ABOUT</p>
-        <h2>少一点履历展示，多一点实践复盘</h2>
+  <section class="section" id="contact">
+    <div class="container">
+      <p class="eyebrow reveal">CONTACT</p>
+      <h2 class="section-title reveal">在这里找到我</h2>
+      <div class="contact-grid">
+        <div class="contact-card reveal" id="subscribe">
+          <img class="qr-code" src="/images/qrcode_wechat.jpg" alt="keinYe 公众号二维码" width="140" height="140" />
+          <h3>微信公众号</h3>
+          <p>扫码关注，持续记录 AI 工具、工程实践、知识管理笔记。</p>
+        </div>
+        <div class="contact-card reveal">
+          <h3>其他渠道</h3>
+          <div class="contact-links">
+            <a href="mailto:keinye.dev@gmail.com">
+              Email
+              <span>keinye.dev@gmail.com</span>
+            </a>
+            <a href="https://github.com/keinYe" rel="noreferrer">
+              GitHub
+              <span>github.com/keinYe</span>
+            </a>
+          </div>
+        </div>
       </div>
-      <p>
-        我长期在软件、产品和内容之间工作。这里记录工具带来的工作流变化，也记录经验如何被整理成可复用规则。
-      </p>
     </div>
   </section>
+
+  <script>
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
+  </script>
 </BaseLayout>
